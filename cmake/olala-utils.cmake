@@ -1,0 +1,5 @@
+function(addSources target dir scope)
+  foreach(source ${ARGN})
+    target_sources(${target} ${scope} "${dir}/${source}")
+  endforeach()
+endfunction()

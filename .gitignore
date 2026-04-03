@@ -1,0 +1,6 @@
+# -- IDE etc.
+.idea
+.claude
+
+# -- built files
+cmake-build-*
