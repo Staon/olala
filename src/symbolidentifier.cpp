@@ -43,7 +43,7 @@ SymbolIdentifier::SymbolIdentifier() = default;
 SymbolIdentifier::~SymbolIdentifier() = default;
 
 std::optional<InputRange> SymbolIdentifier::doMatch(
-    const ParserContext& context_) {
+    const ParserContext& context_) const {
   auto range(context_.sequence->openRange());
 
   /* -- the first character must be a letter or underscore */

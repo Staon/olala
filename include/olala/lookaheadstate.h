@@ -53,7 +53,7 @@ class LookaheadState {
      */
     virtual void apply(
         const ParserContext& context_,
-        Symbol& symbol_) = 0;
+        const Symbol& symbol_) = 0;
 };
 
 } /* -- namespace OLala */

@@ -53,10 +53,10 @@ class SymbolTerminal : public Symbol {
 
   protected:
     virtual LookaheadStatus doLookahead(
-        const ParserContext& context_) override;
+        const ParserContext& context_) const override;
 
     virtual void doParse(
-        const ParserContext& context_) override;
+        const ParserContext& context_) const override;
 
     /**
      * @brief Match the input against this terminal
@@ -65,7 +65,7 @@ class SymbolTerminal : public Symbol {
      * @return The matched input range, or empty if the input doesn't match.
      */
     virtual std::optional<InputRange> doMatch(
-        const ParserContext& context_) = 0;
+        const ParserContext& context_) const = 0;
 
     /**
      * @brief Handle the matched input during commit
@@ -80,12 +80,12 @@ class SymbolTerminal : public Symbol {
      */
     virtual void doCommitValue(
         const ParserContext& context_,
-        std::string&& value_);
+        std::string&& value_) const;
 
   private:
     void applyRange(
         const ParserContext& context_,
-        InputRange&& range_);
+        InputRange&& range_) const;
 };
 
 } /* -- namespace OLala */

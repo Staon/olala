@@ -49,10 +49,10 @@ class SymbolAlternation : public SymbolNonTerminal {
 
   protected:
     virtual LookaheadStatus doLookahead(
-        const ParserContext& context_) override;
+        const ParserContext& context_) const override;
 
     virtual void doParse(
-        const ParserContext& context_) override;
+        const ParserContext& context_) const override;
 };
 
 } /* -- namespace OLala */

@@ -43,7 +43,7 @@ class SymbolIdentifier : public SymbolTerminal {
 
   protected:
     virtual std::optional<InputRange> doMatch(
-        const ParserContext& context_) override;
+        const ParserContext& context_) const override;
 };
 
 } /* -- namespace OLala */

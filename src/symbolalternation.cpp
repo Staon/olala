@@ -39,7 +39,7 @@ class AlternationLookaheadState : public LookaheadState {
 
     virtual void apply(
         const ParserContext& context_,
-        Symbol& symbol_) override;
+        const Symbol& symbol_) override;
 };
 
 AlternationLookaheadState::AlternationLookaheadState(
@@ -52,13 +52,13 @@ AlternationLookaheadState::AlternationLookaheadState(
 
 void AlternationLookaheadState::apply(
     const ParserContext& context_,
-    Symbol& symbol_) {
+    const Symbol& symbol_) {
   if(!selected_state) {
     return;  /* -- empty alternation, nothing to apply */
   }
-  auto& alt_(static_cast<SymbolAlternation&>(symbol_));
+  auto& alt_(static_cast<const SymbolAlternation&>(symbol_));
   alt_.children[selected_index]->parse(
-      context_, std::move(selected_state));
+      context_, selected_state);
 }
 
 } /* -- namespace Detail */
@@ -67,7 +67,7 @@ SymbolAlternation::SymbolAlternation() = default;
 SymbolAlternation::~SymbolAlternation() = default;
 
 LookaheadStatus SymbolAlternation::doLookahead(
-    const ParserContext& context_) {
+    const ParserContext& context_) const {
   /* -- empty alternation is epsilon */
   if(children.empty()) {
     return {
@@ -108,7 +108,7 @@ LookaheadStatus SymbolAlternation::doLookahead(
 }
 
 void SymbolAlternation::doParse(
-    const ParserContext& context_) {
+    const ParserContext& context_) const {
   if(children.empty()) {
     return;  /* -- empty alternation is epsilon */
   }

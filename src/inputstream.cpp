@@ -16,30 +16,11 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with OLala.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include <olala/symbolaction.h>
-
-#include <utility>
-
-#include <olala/lookaheadstate.h>
+#include <olala/inputstream.h>
 
 namespace OLala {
 
-SymbolAction::SymbolAction(
-    Action action_)
-  : action(std::move(action_)) {
-
-}
-
-SymbolAction::~SymbolAction() = default;
-
-LookaheadStatus SymbolAction::doLookahead(
-    const ParserContext& context_) const {
-  return {LookaheadResult::EPSILON, nullptr};
-}
-
-void SymbolAction::doParse(
-    const ParserContext& context_) const {
-  action(context_);
-}
+InputStream::InputStream() = default;
+InputStream::~InputStream() = default;
 
 } /* -- namespace OLala */

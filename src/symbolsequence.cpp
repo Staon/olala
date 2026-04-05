@@ -41,7 +41,7 @@ class SequenceLookaheadState : public LookaheadState {
 
     virtual void apply(
         const ParserContext& context_,
-        Symbol& symbol_) override;
+        const Symbol& symbol_) override;
 };
 
 SequenceLookaheadState::SequenceLookaheadState(
@@ -54,13 +54,13 @@ SequenceLookaheadState::SequenceLookaheadState(
 
 void SequenceLookaheadState::apply(
     const ParserContext& context_,
-    Symbol& symbol_) {
-  auto& seq_(static_cast<SymbolSequence&>(symbol_));
+    const Symbol& symbol_) {
+  auto& seq_(static_cast<const SymbolSequence&>(symbol_));
 
   /* -- apply cached states (epsilon children + the first accepted child) */
   for(std::size_t i_(0); i_ < probed_states.size(); ++i_) {
     seq_.children[i_]->parse(
-        context_, std::move(probed_states[i_].state));
+        context_, probed_states[i_].state);
   }
 
   /* -- parse the rest without cached state */
@@ -75,7 +75,7 @@ SymbolSequence::SymbolSequence() = default;
 SymbolSequence::~SymbolSequence() = default;
 
 LookaheadStatus SymbolSequence::doLookahead(
-    const ParserContext& context_) {
+    const ParserContext& context_) const {
   std::vector<LookaheadStatus> probed_states_;
 
   for(std::size_t i_(0); i_ < children.size(); ++i_) {
@@ -106,7 +106,7 @@ LookaheadStatus SymbolSequence::doLookahead(
 }
 
 void SymbolSequence::doParse(
-    const ParserContext& context_) {
+    const ParserContext& context_) const {
   for(auto& child_ : children) {
     child_->parse(context_, nullptr);
   }

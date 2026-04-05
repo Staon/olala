@@ -28,8 +28,9 @@ addSources(olala src PRIVATE
     adaptableexception.cpp
     error.cpp
     inputsequence.cpp
+    inputstream.cpp
+    inputstreamstream.cpp
     lookaheadstate.cpp
-    inputsequencestream.cpp
     parsercontext.cpp
     semanticstack.cpp
     symbol.cpp
@@ -51,9 +52,10 @@ addSources(olala include/olala PUBLIC
     adaptableexception.h
     error.h
     inputsequence.h
+    inputstream.h
+    inputstreamstream.h
     lookaheadstate.h
     lookaheadstateptr.h
-    inputsequencestream.h
     parsercontext.h
     semanticstack.h
     symbol.h

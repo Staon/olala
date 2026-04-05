@@ -26,12 +26,12 @@ SymbolEpsilon::SymbolEpsilon() = default;
 SymbolEpsilon::~SymbolEpsilon() = default;
 
 LookaheadStatus SymbolEpsilon::doLookahead(
-    const ParserContext& context_) {
+    const ParserContext& context_) const {
   return {LookaheadResult::EPSILON, nullptr};
 }
 
 void SymbolEpsilon::doParse(
-    const ParserContext& context_) {
+    const ParserContext& context_) const {
   /* -- nothing to do */
 }
 

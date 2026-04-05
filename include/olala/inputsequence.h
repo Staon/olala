@@ -20,14 +20,14 @@
 #define OLALA_INPUTSEQUENCE_H
 
 #include <cstddef>
+#include <deque>
+#include <memory>
 #include <string>
+#include <vector>
+
+#include <olala/inputstream.h>
 
 namespace OLala {
-
-/**
- * @brief Representation of end of sequence
- */
-constexpr char32_t EOS(0xffffffff);
 
 class InputSequence;
 
@@ -104,11 +104,24 @@ class InputRange {
 };
 
 /**
- * @brief Generic interface of an input sequence
+ * @brief Concrete input sequence with lookahead buffer and stream stack
  *
  * The input sequence keeps a physical window above a sequence of characters.
  * The end of the window expands with fetching of input characters. The begin
  * of the window moves when a range is committed.
+ *
+ * The sequence owns a stack of input streams. Characters are read from the
+ * top stream. When EOS is reached, prefetched characters from the previous
+ * stream level are restored and reading continues from the stream below.
+ *
+ * When a stream is pushed, the current window contents are saved (shelved)
+ * into the stream frame. This ensures the pushed stream's content appears
+ * immediately, before any prefetched characters from the outer stream.
+ * The shelved characters are restored when the pushed stream is exhausted.
+ *
+ * Contract: pushStream() must be called at a synchronization point — after
+ * a range commit — when no active range references any prefetched characters
+ * in the window.
  *
  * Generally, the interface works:
  * <pre>
@@ -127,13 +140,31 @@ class InputRange {
 class InputSequence {
   public:
     InputSequence();
-    virtual ~InputSequence();
+    ~InputSequence();
 
     /* -- avoid copying */
     InputSequence(
         const InputSequence&) = delete;
     InputSequence& operator=(
         const InputSequence&) = delete;
+
+    /**
+     * @brief Push a new input stream onto the stack
+     *
+     * The current window contents are shelved and restored when this stream
+     * is exhausted. This must be called at a synchronization point (after
+     * a commit) when no active range references prefetched window characters.
+     *
+     * @param stream_ The stream (ownership is taken)
+     */
+    void pushStream(std::shared_ptr<InputStream> stream_);
+
+    /**
+     * @brief Pop the current input stream from the stack
+     *
+     * Restores the shelved window contents from this stream's frame.
+     */
+    void popStream();
 
     /**
      * @brief Open an input range
@@ -147,50 +178,44 @@ class InputSequence {
     InputRange openRange();
 
   private:
-    /**
-     * @brief Create new empty range at the beginning of the window
-     *
-     * @return Beginning offset of the opened range
-     * @exception If some error happens
-     */
-    virtual std::size_t doOpenRange() = 0;
+    struct StreamFrame {
+      std::shared_ptr<InputStream> stream;
+      std::deque<char32_t> saved_window;
+    };
 
-    /**
-     * @brief Fetch character at specified offset
-     *
-     * The method fetches a character at offset @a range_end_. The offset
-     * must be inside current window or it must point a character just
-     * immediately following the window (max. 1 character out of the window).
-     * If the following character is requested the current window is extended.
-     *
-     * @param range_end_ Offset of the range end.
-     * @return The fetched character.
-     */
-    virtual char32_t doFetchCharacter(std::size_t range_end_) = 0;
-
-    /**
-     * @brief Get the string representation of a range
-     *
-     * @param begin_ Begin of the range
-     * @param end_ End of the range (first offset not in the range)
-     * @return UTF-8 encoded string
-     */
-    virtual std::string doGetString(
+    std::size_t doOpenRange();
+    char32_t doFetchCharacter(std::size_t range_end_);
+    std::string doGetString(
         std::size_t begin_,
-        std::size_t end_) const = 0;
+        std::size_t end_) const;
+    void doCommitRange(std::size_t begin_, std::size_t end_);
 
     /**
-     * @brief Commit the range
+     * @brief Extend the window by one or more characters
      *
-     * The method removes the range from the window. The range must be
-     * the beginning of the window!
+     * Reads from the top stream. On EOS, restores the shelved window
+     * from that frame and pops it, then continues with the next frame.
      *
-     * @param begin_ Begin of the range (must be exactly the begin of the
-     *     window).
-     * @param end_ End of the range (first offset not in the range)
+     * @return true if the window was extended, false if no more data
      */
-    virtual void doCommitRange(std::size_t begin_, std::size_t end_) = 0;
+    bool extendWindow();
+
+    /**
+     * @brief Encode a Unicode codepoint as UTF-8
+     *
+     * @param cp_ The codepoint
+     * @param out_ Output string to append to
+     */
+    static void encodeUtf8(
+        char32_t cp_,
+        std::string& out_);
+
     friend class InputRange;
+
+    std::vector<StreamFrame> stream_stack;
+    std::size_t window_begin;
+    std::size_t window_end;
+    std::deque<char32_t> window;
 };
 
 } /* -- namespace OLala */

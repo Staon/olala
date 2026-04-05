@@ -68,7 +68,7 @@ class Symbol : public Adaptable {
      *         during the probe.
      */
     LookaheadStatus lookahead(
-        const ParserContext& context_);
+        const ParserContext& context_) const;
 
     /**
      * @brief Recursively descend into this symbol, consuming input
@@ -81,14 +81,14 @@ class Symbol : public Adaptable {
      */
     void parse(
         const ParserContext& context_,
-        const LookaheadStatePtr& state_);
+        const LookaheadStatePtr& state_) const;
 
   protected:
     /**
      * @sa Symbol::lookahead()
      */
     virtual LookaheadStatus doLookahead(
-        const ParserContext& context_) = 0;
+        const ParserContext& context_) const = 0;
 
     /**
      * @brief Implementation of the input consumption without stored
@@ -96,7 +96,7 @@ class Symbol : public Adaptable {
      * @sa Symbol::parse()
      */
     virtual void doParse(
-        const ParserContext& context_) = 0;
+        const ParserContext& context_) const = 0;
 
     /**
      * @brief An action after the consumption of the symbol
@@ -106,7 +106,7 @@ class Symbol : public Adaptable {
      * @param context_ The parser context
      */
     virtual void doAfterAction(
-        const ParserContext& context_);
+        const ParserContext& context_) const;
 
     /* -- adaptable interface */
     virtual const Adapted* doAdapt(

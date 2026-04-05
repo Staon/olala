@@ -26,13 +26,13 @@ Symbol::Symbol() = default;
 Symbol::~Symbol() = default;
 
 LookaheadStatus Symbol::lookahead(
-    const ParserContext& context_) {
+    const ParserContext& context_) const {
   return doLookahead(context_);
 }
 
 void Symbol::parse(
     const ParserContext& context_,
-    const LookaheadStatePtr& state_) {
+    const LookaheadStatePtr& state_) const {
   /* -- If we have the lookahead state, use it. If not
    *    do the entire parse action. */
   if(state_ != nullptr) {
@@ -46,7 +46,7 @@ void Symbol::parse(
 }
 
 void Symbol::doAfterAction(
-    const ParserContext& context_) {
+    const ParserContext& context_) const {
   /* -- empty by default, child can override it */
 }
 

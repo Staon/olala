@@ -16,30 +16,36 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with OLala.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include <olala/symbolaction.h>
-
-#include <utility>
-
-#include <olala/lookaheadstate.h>
+#ifndef OLALA_INPUTSTREAM_H
+#define OLALA_INPUTSTREAM_H
 
 namespace OLala {
 
-SymbolAction::SymbolAction(
-    Action action_)
-  : action(std::move(action_)) {
+/**
+ * @brief Representation of end of sequence
+ */
+constexpr char32_t EOS(0xffffffff);
 
-}
+/**
+ * @brief Abstract source of Unicode codepoints
+ */
+class InputStream {
+  public:
+    InputStream();
+    virtual ~InputStream();
 
-SymbolAction::~SymbolAction() = default;
+    /* -- avoid copying */
+    InputStream(const InputStream&) = delete;
+    InputStream& operator=(const InputStream&) = delete;
 
-LookaheadStatus SymbolAction::doLookahead(
-    const ParserContext& context_) const {
-  return {LookaheadResult::EPSILON, nullptr};
-}
-
-void SymbolAction::doParse(
-    const ParserContext& context_) const {
-  action(context_);
-}
+    /**
+     * @brief Read one Unicode codepoint from the stream
+     *
+     * @return The codepoint or EOS
+     */
+    virtual char32_t readCodepoint() = 0;
+};
 
 } /* -- namespace OLala */
+
+#endif /* OLALA_INPUTSTREAM_H */

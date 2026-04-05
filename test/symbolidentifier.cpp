@@ -1,8 +1,10 @@
+#include <memory>
 #include <sstream>
 
 #include <gtest/gtest.h>
 
-#include <olala/inputsequencestream.h>
+#include <olala/inputsequence.h>
+#include <olala/inputstreamstream.h>
 #include <olala/lookaheadstate.h>
 #include <olala/parsercontext.h>
 #include <olala/semanticstack.h>
@@ -14,8 +16,11 @@ using namespace OLala;
 namespace {
 
 LookaheadStatus lookaheadIdentifier(const std::string& input) {
-  std::istringstream iss(input);
-  InputSequenceStream seq(&iss);
+  auto stream(
+      std::make_shared<InputStreamStream>(
+          std::make_unique<std::istringstream>(input)));
+  InputSequence seq;
+  seq.pushStream(stream);
   SemanticStack stack;
   const ParserContext ctx(&seq, &stack);
   SymbolIdentifier ident;

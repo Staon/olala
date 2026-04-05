@@ -39,7 +39,7 @@ class TerminalLookaheadState : public LookaheadState {
 
     virtual void apply(
         const ParserContext& context_,
-        Symbol& symbol_) override;
+        const Symbol& symbol_) override;
 };
 
 TerminalLookaheadState::TerminalLookaheadState(
@@ -50,8 +50,8 @@ TerminalLookaheadState::TerminalLookaheadState(
 
 void TerminalLookaheadState::apply(
     const ParserContext& context_,
-    Symbol& symbol_) {
-  dynamic_cast<SymbolTerminal&>(symbol_).applyRange(
+    const Symbol& symbol_) {
+  dynamic_cast<const SymbolTerminal&>(symbol_).applyRange(
       context_, std::move(range));
 }
 
@@ -62,14 +62,14 @@ SymbolTerminal::~SymbolTerminal() = default;
 
 void SymbolTerminal::applyRange(
     const ParserContext& context_,
-    InputRange&& range_) {
+    InputRange&& range_) const {
   auto value_(range_.getString());
   range_.commitRange();
   doCommitValue(context_, std::move(value_));
 }
 
 LookaheadStatus SymbolTerminal::doLookahead(
-  const ParserContext& context_) {
+  const ParserContext& context_) const {
   auto range(doMatch(context_));
   if(range.has_value()) {
     return {
@@ -82,7 +82,7 @@ LookaheadStatus SymbolTerminal::doLookahead(
 }
 
 void SymbolTerminal::doParse(
-    const ParserContext& context_) {
+    const ParserContext& context_) const {
   auto range(doMatch(context_));
   if(range.has_value()) {
     auto value_(range->getString());
@@ -96,7 +96,7 @@ void SymbolTerminal::doParse(
 
 void SymbolTerminal::doCommitValue(
     const ParserContext& context_,
-    std::string&& value_) {
+    std::string&& value_) const {
   context_.stack->pushValue(
       std::make_shared<ValueString>(std::move(value_)));
 }
