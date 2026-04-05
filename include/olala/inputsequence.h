@@ -32,6 +32,50 @@ namespace OLala {
 class InputSequence;
 
 /**
+ * @brief Source location in a parsed file
+ */
+struct SourceLocation {
+    std::shared_ptr<const std::string> file;
+    int line;
+    int column;
+};
+
+/**
+ * @brief A contiguous span within a single source file
+ */
+struct SourceSpan {
+    SourceLocation start;
+    SourceLocation end;
+};
+
+/**
+ * @brief Location of a parsed object in the source
+ *
+ * A parsed object may span multiple source files (e.g. when an include
+ * is expanded within the matched range). The location is represented
+ * as an ordered list of per-file spans.
+ */
+class SourceRange {
+  public:
+    SourceRange();
+    explicit SourceRange(
+        std::vector<SourceSpan> spans_);
+
+    /**
+     * @brief Get the list of per-file spans
+     */
+    const std::vector<SourceSpan>& spans() const;
+
+    /**
+     * @brief Check whether the range is empty
+     */
+    bool empty() const;
+
+  private:
+    std::vector<SourceSpan> spans_data;
+};
+
+/**
  * @brief Range of characters in an input sequence
  */
 class InputRange {
@@ -85,22 +129,33 @@ class InputRange {
     std::string getString() const;
 
     /**
+     * @brief Get the source location of the range beginning
+     */
+    const SourceLocation& getLocation() const;
+
+    /**
      * @brief Commit the character range
      *
      * The character range is removed from the input sequence. The range
      * must be the beginning of the sequence!
+     *
+     * @return Source spans covering the committed characters, one per
+     *     contiguous run within a single source file. A range crossing
+     *     stream boundaries produces multiple spans.
      */
-    void commitRange();
+    SourceRange commitRange();
 
   private:
     explicit InputRange(
         InputSequence* sequence_,
-        std::size_t begin_);
+        std::size_t begin_,
+        SourceLocation location_);
     friend class InputSequence;
 
     InputSequence* sequence;
     std::size_t begin;
     std::size_t end;
+    SourceLocation location;
 };
 
 /**
@@ -122,6 +177,9 @@ class InputRange {
  * Contract: pushStream() must be called at a synchronization point — after
  * a range commit — when no active range references any prefetched characters
  * in the window.
+ *
+ * Each character carries its source location (file, line, column). The
+ * location tracking handles CR, LF and CRLF newline variants.
  *
  * Generally, the interface works:
  * <pre>
@@ -156,8 +214,11 @@ class InputSequence {
      * a commit) when no active range references prefetched window characters.
      *
      * @param stream_ The stream (ownership is taken)
+     * @param file_ Name of the source file for location reporting
      */
-    void pushStream(std::shared_ptr<InputStream> stream_);
+    void pushStream(
+        std::shared_ptr<InputStream> stream_,
+        std::string file_);
 
     /**
      * @brief Pop the current input stream from the stack
@@ -170,7 +231,7 @@ class InputSequence {
      * @brief Open an input range
      *
      * The method opens new input range beginning at current start of the input
-     * window.
+     * window. The range captures the source location at the opening point.
      *
      * @return The opened range
      * @exception If some error happens
@@ -178,9 +239,18 @@ class InputSequence {
     InputRange openRange();
 
   private:
+    struct LocatedCodepoint {
+      char32_t codepoint;
+      SourceLocation location;
+    };
+
     struct StreamFrame {
       std::shared_ptr<InputStream> stream;
-      std::deque<char32_t> saved_window;
+      std::deque<LocatedCodepoint> saved_window;
+      std::shared_ptr<const std::string> file;
+      int line;
+      int column;
+      bool last_was_cr;
     };
 
     std::size_t doOpenRange();
@@ -188,7 +258,15 @@ class InputSequence {
     std::string doGetString(
         std::size_t begin_,
         std::size_t end_) const;
-    void doCommitRange(std::size_t begin_, std::size_t end_);
+    SourceRange doCommitRange(std::size_t begin_, std::size_t end_);
+
+    /**
+     * @brief Get the source location at the current window beginning
+     *
+     * If the window has characters, returns the location of the first one.
+     * Otherwise returns the tracking location of the top stream frame.
+     */
+    SourceLocation currentLocation() const;
 
     /**
      * @brief Extend the window by one or more characters
@@ -215,7 +293,7 @@ class InputSequence {
     std::vector<StreamFrame> stream_stack;
     std::size_t window_begin;
     std::size_t window_end;
-    std::deque<char32_t> window;
+    std::deque<LocatedCodepoint> window;
 };
 
 } /* -- namespace OLala */

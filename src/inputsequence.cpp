@@ -26,16 +26,19 @@ namespace OLala {
 InputRange::InputRange() :
   sequence(nullptr),
   begin(0),
-  end(0) {
+  end(0),
+  location() {
 
 }
 
 InputRange::InputRange(
     InputSequence* sequence_,
-    std::size_t begin_) :
+    std::size_t begin_,
+    SourceLocation location_) :
   sequence(sequence_),
   begin(begin_),
-  end(begin_) {
+  end(begin_),
+  location(std::move(location_)) {
   assert(sequence != nullptr);
 }
 
@@ -58,9 +61,32 @@ std::string InputRange::getString() const {
   return sequence->doGetString(begin, end);
 }
 
-void InputRange::commitRange() {
+const SourceLocation& InputRange::getLocation() const {
+  return location;
+}
+
+SourceRange InputRange::commitRange() {
   assert(sequence != nullptr);
-  sequence->doCommitRange(begin, end);
+  return sequence->doCommitRange(begin, end);
+}
+
+SourceRange::SourceRange() :
+  spans_data() {
+
+}
+
+SourceRange::SourceRange(
+    std::vector<SourceSpan> spans_) :
+  spans_data(std::move(spans_)) {
+
+}
+
+const std::vector<SourceSpan>& SourceRange::spans() const {
+  return spans_data;
+}
+
+bool SourceRange::empty() const {
+  return spans_data.empty();
 }
 
 InputSequence::InputSequence() :
@@ -73,11 +99,22 @@ InputSequence::InputSequence() :
 
 InputSequence::~InputSequence() = default;
 
-void InputSequence::pushStream(std::shared_ptr<InputStream> stream_) {
+void InputSequence::pushStream(
+    std::shared_ptr<InputStream> stream_,
+    std::string file_) {
   assert(stream_ != nullptr);
 
+  auto file_ptr(std::make_shared<const std::string>(std::move(file_)));
+
   /* -- shelve the current window into the new frame */
-  stream_stack.push_back({std::move(stream_), std::move(window)});
+  stream_stack.push_back({
+      std::move(stream_),
+      std::move(window),
+      std::move(file_ptr),
+      1,     /* -- line */
+      1,     /* -- column */
+      false  /* -- last_was_cr */
+  });
   window.clear();
   window_end = window_begin;
 }
@@ -87,15 +124,15 @@ void InputSequence::popStream() {
 
   /* -- restore the shelved window */
   auto& saved(stream_stack.back().saved_window);
-  for(auto c : saved) {
-    window.push_back(c);
+  for(auto& lc : saved) {
+    window.push_back(std::move(lc));
   }
   window_end += saved.size();
   stream_stack.pop_back();
 }
 
 InputRange InputSequence::openRange() {
-  return InputRange(this, doOpenRange());
+  return InputRange(this, doOpenRange(), currentLocation());
 }
 
 std::size_t InputSequence::doOpenRange() {
@@ -113,7 +150,7 @@ char32_t InputSequence::doFetchCharacter(
     }
   }
 
-  return window[range_end_ - window_begin];
+  return window[range_end_ - window_begin].codepoint;
 }
 
 std::string InputSequence::doGetString(
@@ -123,7 +160,7 @@ std::string InputSequence::doGetString(
 
   std::string result_;
   for(std::size_t i_(begin_); i_ < end_; ++i_) {
-    auto cp_(window[i_ - window_begin]);
+    auto cp_(window[i_ - window_begin].codepoint);
     if(cp_ != EOS) {
       encodeUtf8(cp_, result_);
     }
@@ -131,31 +168,95 @@ std::string InputSequence::doGetString(
   return result_;
 }
 
-void InputSequence::doCommitRange(
+SourceRange InputSequence::doCommitRange(
     std::size_t begin_,
     std::size_t end_) {
   assert(begin_ == window_begin);
   assert(end_ >= begin_ && end_ <= window_end);
+
+  /* -- build source spans: group consecutive characters by file */
+  std::vector<SourceSpan> spans_;
+  auto count_(end_ - begin_);
+  if(count_ > 0) {
+    auto& first_(window[0].location);
+    auto current_file_(first_.file.get());
+    SourceLocation span_start_(first_);
+    SourceLocation span_end_(first_);
+
+    for(std::size_t i_(1); i_ < count_; ++i_) {
+      auto& loc_(window[i_].location);
+      if(loc_.file.get() != current_file_) {
+        /* -- file boundary: close current span and start a new one */
+        spans_.push_back({std::move(span_start_), std::move(span_end_)});
+        current_file_ = loc_.file.get();
+        span_start_ = loc_;
+      }
+      span_end_ = loc_;
+    }
+    spans_.push_back({std::move(span_start_), std::move(span_end_)});
+  }
+
   window.erase(
       window.begin(),
-      window.begin() + static_cast<std::deque<char32_t>::difference_type>(end_ - begin_));
+      window.begin() + static_cast<std::ptrdiff_t>(count_));
   window_begin = end_;
+
+  return SourceRange(std::move(spans_));
+}
+
+SourceLocation InputSequence::currentLocation() const {
+  /* -- if the window has characters, use the first one's location */
+  if(!window.empty()) {
+    return window.front().location;
+  }
+  /* -- otherwise use the tracking state of the top stream frame */
+  if(!stream_stack.empty()) {
+    auto& frame(stream_stack.back());
+    return {frame.file, frame.line, frame.column};
+  }
+  return {};
 }
 
 bool InputSequence::extendWindow() {
   while(!stream_stack.empty()) {
-    auto cp(stream_stack.back().stream->readCodepoint());
+    auto& frame(stream_stack.back());
+    auto cp(frame.stream->readCodepoint());
     if(cp != EOS) {
-      window.push_back(cp);
+      /* -- capture the location BEFORE updating the tracking state */
+      SourceLocation loc{frame.file, frame.line, frame.column};
+
+      /* -- update line/column tracking with CR/LF/CRLF handling:
+       *    Both CR and LF are line breaks. LF immediately after CR
+       *    is suppressed (CRLF counts as one line break). */
+      if(cp == '\n' && frame.last_was_cr) {
+        /* -- LF after CR: CRLF sequence, suppress the extra line break */
+        frame.last_was_cr = false;
+      }
+      else if(cp == '\r') {
+        frame.line++;
+        frame.column = 1;
+        frame.last_was_cr = true;
+      }
+      else if(cp == '\n') {
+        frame.line++;
+        frame.column = 1;
+        frame.last_was_cr = false;
+      }
+      else {
+        frame.column++;
+        frame.last_was_cr = false;
+      }
+
+      window.push_back({cp, std::move(loc)});
       ++window_end;
       return true;
     }
 
-    /* -- stream exhausted: restore the shelved window and pop the frame */
-    auto& saved(stream_stack.back().saved_window);
+    /* -- restore the shelved window and pop the frame */
+    auto& saved(frame.saved_window);
     auto saved_size(saved.size());
-    for(auto c : saved) {
-      window.push_back(c);
+    for(auto& lc : saved) {
+      window.push_back(std::move(lc));
     }
     window_end += saved_size;
     stream_stack.pop_back();

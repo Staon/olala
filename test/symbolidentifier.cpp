@@ -20,7 +20,7 @@ LookaheadStatus lookaheadIdentifier(const std::string& input) {
       std::make_shared<InputStreamStream>(
           std::make_unique<std::istringstream>(input)));
   InputSequence seq;
-  seq.pushStream(stream);
+  seq.pushStream(stream, "test");
   SemanticStack stack;
   const ParserContext ctx(&seq, &stack);
   SymbolIdentifier ident;
