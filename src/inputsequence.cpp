@@ -19,7 +19,18 @@
 #include <olala/inputsequence.h>
 
 #include <cassert>
+#include <deque>
+#include <list>
 #include <utility>
+#include <vector>
+
+#include <olala/inputstream.h>
+#include <olala/lookaheadstate.h>
+#include <olala/parsercontext.h>
+#include <olala/semanticstack.h>
+#include <olala/sourcelocation.h>
+#include <olala/symbol.h>
+#include <olala/symbolptr.h>
 
 namespace OLala {
 
@@ -70,99 +81,216 @@ SourceRange InputRange::commitRange() {
   return sequence->doCommitRange(begin, end);
 }
 
-SourceRange::SourceRange() :
-  spans_data() {
+struct InputSequence::Impl {
+    struct LocatedCodepoint {
+      char32_t codepoint;
+      SourceLocation location;
+    };
 
-}
+    struct StreamFrame {
+      std::shared_ptr<InputStream> stream;
+      std::deque<LocatedCodepoint> saved_window;
+      std::shared_ptr<const std::string> file;
+      int line;
+      int column;
+      bool last_was_cr;
+    };
 
-SourceRange::SourceRange(
-    std::vector<SourceSpan> spans_) :
-  spans_data(std::move(spans_)) {
+    std::vector<StreamFrame> stream_stack;
+    std::size_t window_begin;
+    std::size_t window_end;
+    std::deque<LocatedCodepoint> window;
+    SymbolPtr skipper;
+    std::unique_ptr<SemanticStack> skipper_stack;
+    std::unique_ptr<ParserContext> skipper_context;
+    bool skipper_running;
 
-}
+    /**
+     * @brief Get the source location at the current window beginning
+     */
+    SourceLocation currentLocation() const {
+      if(!window.empty()) {
+        return window.front().location;
+      }
+      if(!stream_stack.empty()) {
+        auto& frame(stream_stack.back());
+        return {frame.file, frame.line, frame.column};
+      }
+      return {};
+    }
 
-const std::vector<SourceSpan>& SourceRange::spans() const {
-  return spans_data;
-}
+    /**
+     * @brief Extend the window by one or more characters
+     */
+    bool extendWindow() {
+      while(!stream_stack.empty()) {
+        auto& frame(stream_stack.back());
+        auto cp(frame.stream->readCodepoint());
+        if(cp != EOS) {
+          SourceLocation loc{frame.file, frame.line, frame.column};
 
-bool SourceRange::empty() const {
-  return spans_data.empty();
-}
+          if(cp == '\n' && frame.last_was_cr) {
+            frame.last_was_cr = false;
+          }
+          else if(cp == '\r') {
+            frame.line++;
+            frame.column = 1;
+            frame.last_was_cr = true;
+          }
+          else if(cp == '\n') {
+            frame.line++;
+            frame.column = 1;
+            frame.last_was_cr = false;
+          }
+          else {
+            frame.column++;
+            frame.last_was_cr = false;
+          }
 
-InputSequence::InputSequence() :
-  stream_stack(),
-  window_begin(0),
-  window_end(0),
-  window() {
+          window.push_back({cp, std::move(loc)});
+          ++window_end;
+          return true;
+        }
 
+        auto& saved(frame.saved_window);
+        auto saved_size(saved.size());
+        for(auto& lc : saved) {
+          window.push_back(std::move(lc));
+        }
+        window_end += saved_size;
+        stream_stack.pop_back();
+
+        if(saved_size > 0) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    /**
+     * @brief Encode a Unicode codepoint as UTF-8
+     */
+    static void encodeUtf8(
+        char32_t cp_,
+        std::string& out_) {
+      if(cp_ < 0x80) {
+        out_ += static_cast<char>(cp_);
+      }
+      else if(cp_ < 0x800) {
+        out_ += static_cast<char>(0xc0 | (cp_ >> 6));
+        out_ += static_cast<char>(0x80 | (cp_ & 0x3f));
+      }
+      else if(cp_ < 0x10000) {
+        out_ += static_cast<char>(0xe0 | (cp_ >> 12));
+        out_ += static_cast<char>(0x80 | ((cp_ >> 6) & 0x3f));
+        out_ += static_cast<char>(0x80 | (cp_ & 0x3f));
+      }
+      else {
+        out_ += static_cast<char>(0xf0 | (cp_ >> 18));
+        out_ += static_cast<char>(0x80 | ((cp_ >> 12) & 0x3f));
+        out_ += static_cast<char>(0x80 | ((cp_ >> 6) & 0x3f));
+        out_ += static_cast<char>(0x80 | (cp_ & 0x3f));
+      }
+    }
+
+    /**
+     * @brief Run the skipper symbol if set
+     */
+    void runSkipper() {
+      if(skipper == nullptr || skipper_running) {
+        return;
+      }
+
+      struct SkipperGuard {
+        bool& running;
+        SemanticStack& stack;
+        explicit SkipperGuard(bool& running_, SemanticStack& stack_)
+          : running(running_), stack(stack_) { running = true; }
+        ~SkipperGuard() { stack.clear(); running = false; }
+      } guard_(skipper_running, *skipper_stack);
+
+      skipper->parse(*skipper_context, nullptr);
+    }
+};
+
+InputSequence::InputSequence(
+    SymbolPtr skipper_) :
+  impl(std::make_unique<Impl>()) {
+  impl->stream_stack = {};
+  impl->window_begin = 0;
+  impl->window_end = 0;
+  impl->window = {};
+  impl->skipper = std::move(skipper_);
+  impl->skipper_stack = impl->skipper ? std::make_unique<SemanticStack>() : nullptr;
+  impl->skipper_context = impl->skipper ? std::make_unique<ParserContext>(this, impl->skipper_stack.get()) : nullptr;
+  impl->skipper_running = false;
 }
 
 InputSequence::~InputSequence() = default;
 
 void InputSequence::pushStream(
-    std::shared_ptr<InputStream> stream_,
+    const std::shared_ptr<InputStream>& stream_,
     std::string file_) {
   assert(stream_ != nullptr);
 
   auto file_ptr(std::make_shared<const std::string>(std::move(file_)));
 
-  /* -- shelve the current window into the new frame */
-  stream_stack.push_back({
+  impl->stream_stack.push_back({
       std::move(stream_),
-      std::move(window),
+      std::move(impl->window),
       std::move(file_ptr),
       1,     /* -- line */
       1,     /* -- column */
       false  /* -- last_was_cr */
   });
-  window.clear();
-  window_end = window_begin;
+  impl->window.clear();
+  impl->window_end = impl->window_begin;
+
+  impl->runSkipper();
 }
 
 void InputSequence::popStream() {
-  assert(!stream_stack.empty());
+  assert(!impl->stream_stack.empty());
 
-  /* -- restore the shelved window */
-  auto& saved(stream_stack.back().saved_window);
+  auto& saved(impl->stream_stack.back().saved_window);
   for(auto& lc : saved) {
-    window.push_back(std::move(lc));
+    impl->window.push_back(std::move(lc));
   }
-  window_end += saved.size();
-  stream_stack.pop_back();
+  impl->window_end += saved.size();
+  impl->stream_stack.pop_back();
 }
 
 InputRange InputSequence::openRange() {
-  return InputRange(this, doOpenRange(), currentLocation());
+  return InputRange(this, doOpenRange(), impl->currentLocation());
 }
 
 std::size_t InputSequence::doOpenRange() {
-  return window_begin;
+  return impl->window_begin;
 }
 
 char32_t InputSequence::doFetchCharacter(
     std::size_t range_end_) {
-  assert(range_end_ >= window_begin);
+  assert(range_end_ >= impl->window_begin);
 
-  /* -- extend the window until the requested offset is covered */
-  while(range_end_ >= window_end) {
-    if(!extendWindow()) {
+  while(range_end_ >= impl->window_end) {
+    if(!impl->extendWindow()) {
       return EOS;
     }
   }
 
-  return window[range_end_ - window_begin].codepoint;
+  return impl->window[range_end_ - impl->window_begin].codepoint;
 }
 
 std::string InputSequence::doGetString(
     std::size_t begin_,
     std::size_t end_) const {
-  assert(begin_ >= window_begin && end_ <= window_end);
+  assert(begin_ >= impl->window_begin && end_ <= impl->window_end);
 
   std::string result_;
   for(std::size_t i_(begin_); i_ < end_; ++i_) {
-    auto cp_(window[i_ - window_begin].codepoint);
+    auto cp_(impl->window[i_ - impl->window_begin].codepoint);
     if(cp_ != EOS) {
-      encodeUtf8(cp_, result_);
+      Impl::encodeUtf8(cp_, result_);
     }
   }
   return result_;
@@ -171,22 +299,20 @@ std::string InputSequence::doGetString(
 SourceRange InputSequence::doCommitRange(
     std::size_t begin_,
     std::size_t end_) {
-  assert(begin_ == window_begin);
-  assert(end_ >= begin_ && end_ <= window_end);
+  assert(begin_ == impl->window_begin);
+  assert(end_ >= begin_ && end_ <= impl->window_end);
 
-  /* -- build source spans: group consecutive characters by file */
-  std::vector<SourceSpan> spans_;
+  std::list<SourceSpan> spans_;
   auto count_(end_ - begin_);
   if(count_ > 0) {
-    auto& first_(window[0].location);
+    auto& first_(impl->window[0].location);
     auto current_file_(first_.file.get());
     SourceLocation span_start_(first_);
     SourceLocation span_end_(first_);
 
     for(std::size_t i_(1); i_ < count_; ++i_) {
-      auto& loc_(window[i_].location);
+      auto& loc_(impl->window[i_].location);
       if(loc_.file.get() != current_file_) {
-        /* -- file boundary: close current span and start a new one */
         spans_.push_back({std::move(span_start_), std::move(span_end_)});
         current_file_ = loc_.file.get();
         span_start_ = loc_;
@@ -196,100 +322,14 @@ SourceRange InputSequence::doCommitRange(
     spans_.push_back({std::move(span_start_), std::move(span_end_)});
   }
 
-  window.erase(
-      window.begin(),
-      window.begin() + static_cast<std::ptrdiff_t>(count_));
-  window_begin = end_;
+  impl->window.erase(
+      impl->window.begin(),
+      impl->window.begin() + static_cast<std::ptrdiff_t>(count_));
+  impl->window_begin = end_;
+
+  impl->runSkipper();
 
   return SourceRange(std::move(spans_));
-}
-
-SourceLocation InputSequence::currentLocation() const {
-  /* -- if the window has characters, use the first one's location */
-  if(!window.empty()) {
-    return window.front().location;
-  }
-  /* -- otherwise use the tracking state of the top stream frame */
-  if(!stream_stack.empty()) {
-    auto& frame(stream_stack.back());
-    return {frame.file, frame.line, frame.column};
-  }
-  return {};
-}
-
-bool InputSequence::extendWindow() {
-  while(!stream_stack.empty()) {
-    auto& frame(stream_stack.back());
-    auto cp(frame.stream->readCodepoint());
-    if(cp != EOS) {
-      /* -- capture the location BEFORE updating the tracking state */
-      SourceLocation loc{frame.file, frame.line, frame.column};
-
-      /* -- update line/column tracking with CR/LF/CRLF handling:
-       *    Both CR and LF are line breaks. LF immediately after CR
-       *    is suppressed (CRLF counts as one line break). */
-      if(cp == '\n' && frame.last_was_cr) {
-        /* -- LF after CR: CRLF sequence, suppress the extra line break */
-        frame.last_was_cr = false;
-      }
-      else if(cp == '\r') {
-        frame.line++;
-        frame.column = 1;
-        frame.last_was_cr = true;
-      }
-      else if(cp == '\n') {
-        frame.line++;
-        frame.column = 1;
-        frame.last_was_cr = false;
-      }
-      else {
-        frame.column++;
-        frame.last_was_cr = false;
-      }
-
-      window.push_back({cp, std::move(loc)});
-      ++window_end;
-      return true;
-    }
-
-    /* -- restore the shelved window and pop the frame */
-    auto& saved(frame.saved_window);
-    auto saved_size(saved.size());
-    for(auto& lc : saved) {
-      window.push_back(std::move(lc));
-    }
-    window_end += saved_size;
-    stream_stack.pop_back();
-
-    /* -- if shelved chars were restored, the window was extended */
-    if(saved_size > 0) {
-      return true;
-    }
-  }
-  return false;
-}
-
-void InputSequence::encodeUtf8(
-    char32_t cp_,
-    std::string& out_) {
-  if(cp_ < 0x80) {
-    out_ += static_cast<char>(cp_);
-  }
-  else if(cp_ < 0x800) {
-    out_ += static_cast<char>(0xc0 | (cp_ >> 6));
-    out_ += static_cast<char>(0x80 | (cp_ & 0x3f));
-  }
-  else if(cp_ < 0x10000) {
-    out_ += static_cast<char>(0xe0 | (cp_ >> 12));
-    out_ += static_cast<char>(0x80 | ((cp_ >> 6) & 0x3f));
-    out_ += static_cast<char>(0x80 | (cp_ & 0x3f));
-  }
-  else {
-    out_ += static_cast<char>(0xf0 | (cp_ >> 18));
-    out_ += static_cast<char>(0x80 | ((cp_ >> 12) & 0x3f));
-    out_ += static_cast<char>(0x80 | ((cp_ >> 6) & 0x3f));
-    out_ += static_cast<char>(0x80 | (cp_ & 0x3f));
-  }
 }
 
 } /* -- namespace OLala */

@@ -21,6 +21,7 @@
 
 #include <vector>
 
+#include <olala/symbolactionable.h>
 #include <olala/symbolcontainer.h>
 #include <olala/symbolptr.h>
 
@@ -33,7 +34,7 @@ namespace OLala {
  * non-terminal symbols (sequence, alternation, etc.) inherit from this
  * class and implement doLookahead/doParse.
  */
-class SymbolNonTerminal : public Symbol, public SymbolContainer {
+class SymbolNonTerminal : public Symbol, public SymbolContainer, public SymbolActionable {
   public:
     SymbolNonTerminal();
     virtual ~SymbolNonTerminal() override;
@@ -45,17 +46,27 @@ class SymbolNonTerminal : public Symbol, public SymbolContainer {
         const SymbolNonTerminal&) = delete;
 
     /* -- SymbolContainer interface */
-    virtual void appendChild(
+    virtual SymbolNonTerminal& appendChild(
         SymbolPtr child_) override;
-    virtual void prependChild(
+    virtual SymbolNonTerminal& prependChild(
         SymbolPtr child_) override;
+
+    /* -- SymbolActionable interface */
+    virtual void setAction(
+        Action action_) override;
 
   protected:
     virtual const Adapted* doAdapt(
         const std::type_info &info_) const override;
 
+    virtual void doAfterAction(
+        const ParserContext& context_) const override;
+
     typedef std::vector<SymbolPtr> Children;
     Children children;
+
+  private:
+    Action action;
 };
 
 } /* -- namespace OLala */

@@ -16,44 +16,41 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with OLala.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef OLALA_SYMBOLACTION_H
-#define OLALA_SYMBOLACTION_H
+#ifndef OLALA_SYMBOLACTIONABLE_H
+#define OLALA_SYMBOLACTIONABLE_H
 
 #include <olala/action.h>
-#include <olala/symbol.h>
+#include <olala/adaptable.h>
 
 namespace OLala {
 
 /**
- * @brief Symbol that always returns epsilon and runs an action during parse
+ * @brief Adapted interface for symbols that support a sidekick action
  *
- * The action receives the parser context so it can manipulate the semantic
- * stack or perform other side effects.
+ * The action is invoked after the symbol is fully parsed (via doAfterAction).
+ * This avoids wrapping every non-terminal into a sequence(symbol, action).
  */
-class SymbolAction : public Symbol {
+class SymbolActionable : public virtual Adapted {
   public:
 
-    explicit SymbolAction(
-        Action action_);
-    virtual ~SymbolAction() override;
+    SymbolActionable();
+    virtual ~SymbolActionable() override;
 
     /* -- avoid copying */
-    SymbolAction(
-        const SymbolAction&) = delete;
-    SymbolAction& operator=(
-        const SymbolAction&) = delete;
+    SymbolActionable(
+        const SymbolActionable&) = delete;
+    SymbolActionable& operator=(
+        const SymbolActionable&) = delete;
 
-  protected:
-    virtual LookaheadStatus doLookahead(
-        const ParserContext& context_) const override;
-
-    virtual void doParse(
-        const ParserContext& context_) const override;
-
-  private:
-    Action action;
+    /**
+     * @brief Set the after-parse action
+     *
+     * @param action_ The action to run after this symbol is parsed
+     */
+    virtual void setAction(
+        Action action_) = 0;
 };
 
 } /* -- namespace OLala */
 
-#endif /* OLALA_SYMBOLACTION_H */
+#endif /* OLALA_SYMBOLACTIONABLE_H */

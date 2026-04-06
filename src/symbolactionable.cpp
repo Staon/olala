@@ -16,32 +16,11 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with OLala.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include <olala/semanticstack.h>
-
-#include <cassert>
-#include <utility>
+#include <olala/symbolactionable.h>
 
 namespace OLala {
 
-SemanticStack::SemanticStack() = default;
-SemanticStack::~SemanticStack() = default;
-
-void SemanticStack::pushValue(
-    ValuePtr value_,
-    SourceRange range_) {
-  assert(value_ != nullptr);
-  stack.push_back({std::move(value_), std::move(range_)});
-}
-
-std::tuple<ValuePtr, SourceRange> SemanticStack::popValue() {
-  assert(!stack.empty());
-  auto entry_(std::move(stack.back()));
-  stack.pop_back();
-  return {std::move(entry_.value), std::move(entry_.range)};
-}
-
-void SemanticStack::clear() noexcept {
-  stack.clear();
-}
+SymbolActionable::SymbolActionable() = default;
+SymbolActionable::~SymbolActionable() = default;
 
 } /* -- namespace OLala */

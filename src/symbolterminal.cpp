@@ -64,8 +64,8 @@ void SymbolTerminal::applyRange(
     const ParserContext& context_,
     InputRange&& range_) const {
   auto value_(range_.getString());
-  range_.commitRange();
-  doCommitValue(context_, std::move(value_));
+  auto source_range_(range_.commitRange());
+  doCommitValue(context_, std::move(value_), std::move(source_range_));
 }
 
 LookaheadStatus SymbolTerminal::doLookahead(
@@ -86,8 +86,8 @@ void SymbolTerminal::doParse(
   auto range(doMatch(context_));
   if(range.has_value()) {
     auto value_(range->getString());
-    range->commitRange();
-    doCommitValue(context_, std::move(value_));
+    auto source_range_(range->commitRange());
+    doCommitValue(context_, std::move(value_), std::move(source_range_));
   }
   else {
     throw Error("syntax error: unexpected input");
@@ -96,9 +96,11 @@ void SymbolTerminal::doParse(
 
 void SymbolTerminal::doCommitValue(
     const ParserContext& context_,
-    std::string&& value_) const {
+    std::string&& value_,
+    SourceRange&& range_) const {
   context_.stack->pushValue(
-      std::make_shared<ValueString>(std::move(value_)));
+      std::make_shared<ValueString>(std::move(value_)),
+      std::move(range_));
 }
 
 } /* -- namespace OLala */

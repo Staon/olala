@@ -33,6 +33,7 @@ addSources(olala src PRIVATE
     lookaheadstate.cpp
     parsercontext.cpp
     semanticstack.cpp
+    sourcelocation.cpp
     symbol.cpp
     symbolterminal.cpp
     symbolcontainer.cpp
@@ -40,6 +41,7 @@ addSources(olala src PRIVATE
     symbolsequence.cpp
     symbolalternation.cpp
     symbolaction.cpp
+    symbolactionable.cpp
     symbolepsilon.cpp
     symbolidentifier.cpp
     value.cpp
@@ -48,6 +50,7 @@ addSources(olala src PRIVATE
 
 # -- library headers
 addSources(olala include/olala PUBLIC
+    action.h
     adaptable.h
     adaptableexception.h
     error.h
@@ -58,6 +61,7 @@ addSources(olala include/olala PUBLIC
     lookaheadstateptr.h
     parsercontext.h
     semanticstack.h
+    sourcelocation.h
     symbol.h
     symbolptr.h
     symbolterminal.h
@@ -66,6 +70,7 @@ addSources(olala include/olala PUBLIC
     symbolsequence.h
     symbolalternation.h
     symbolaction.h
+    symbolactionable.h
     symbolepsilon.h
     symbolidentifier.h
     value.h

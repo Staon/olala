@@ -20,60 +20,19 @@
 #define OLALA_INPUTSEQUENCE_H
 
 #include <cstddef>
-#include <deque>
 #include <memory>
 #include <string>
-#include <vector>
 
-#include <olala/inputstream.h>
+#include <olala/sourcelocation.h>
+#include <olala/symbolptr.h>
 
 namespace OLala {
 
 class InputSequence;
-
-/**
- * @brief Source location in a parsed file
- */
-struct SourceLocation {
-    std::shared_ptr<const std::string> file;
-    int line;
-    int column;
-};
-
-/**
- * @brief A contiguous span within a single source file
- */
-struct SourceSpan {
-    SourceLocation start;
-    SourceLocation end;
-};
-
-/**
- * @brief Location of a parsed object in the source
- *
- * A parsed object may span multiple source files (e.g. when an include
- * is expanded within the matched range). The location is represented
- * as an ordered list of per-file spans.
- */
-class SourceRange {
-  public:
-    SourceRange();
-    explicit SourceRange(
-        std::vector<SourceSpan> spans_);
-
-    /**
-     * @brief Get the list of per-file spans
-     */
-    const std::vector<SourceSpan>& spans() const;
-
-    /**
-     * @brief Check whether the range is empty
-     */
-    bool empty() const;
-
-  private:
-    std::vector<SourceSpan> spans_data;
-};
+class InputStream;
+class ParserContext;
+class SemanticStack;
+class Symbol;
 
 /**
  * @brief Range of characters in an input sequence
@@ -197,7 +156,16 @@ class InputRange {
  */
 class InputSequence {
   public:
-    InputSequence();
+    /**
+     * @brief Ctor
+     *
+     * @param skipper_ Optional skipper symbol invoked after each range commit
+     *     and after each pushStream to consume whitespace, comments, or
+     *     preprocessor directives between tokens. May be null to disable.
+     *     The ownership is taken.
+     */
+    explicit InputSequence(
+        SymbolPtr skipper_ = nullptr);
     ~InputSequence();
 
     /* -- avoid copying */
@@ -217,7 +185,7 @@ class InputSequence {
      * @param file_ Name of the source file for location reporting
      */
     void pushStream(
-        std::shared_ptr<InputStream> stream_,
+        const std::shared_ptr<InputStream>& stream_,
         std::string file_);
 
     /**
@@ -239,61 +207,20 @@ class InputSequence {
     InputRange openRange();
 
   private:
-    struct LocatedCodepoint {
-      char32_t codepoint;
-      SourceLocation location;
-    };
-
-    struct StreamFrame {
-      std::shared_ptr<InputStream> stream;
-      std::deque<LocatedCodepoint> saved_window;
-      std::shared_ptr<const std::string> file;
-      int line;
-      int column;
-      bool last_was_cr;
-    };
-
     std::size_t doOpenRange();
-    char32_t doFetchCharacter(std::size_t range_end_);
+    char32_t doFetchCharacter(
+      std::size_t range_end_);
     std::string doGetString(
         std::size_t begin_,
         std::size_t end_) const;
-    SourceRange doCommitRange(std::size_t begin_, std::size_t end_);
-
-    /**
-     * @brief Get the source location at the current window beginning
-     *
-     * If the window has characters, returns the location of the first one.
-     * Otherwise returns the tracking location of the top stream frame.
-     */
-    SourceLocation currentLocation() const;
-
-    /**
-     * @brief Extend the window by one or more characters
-     *
-     * Reads from the top stream. On EOS, restores the shelved window
-     * from that frame and pops it, then continues with the next frame.
-     *
-     * @return true if the window was extended, false if no more data
-     */
-    bool extendWindow();
-
-    /**
-     * @brief Encode a Unicode codepoint as UTF-8
-     *
-     * @param cp_ The codepoint
-     * @param out_ Output string to append to
-     */
-    static void encodeUtf8(
-        char32_t cp_,
-        std::string& out_);
+    SourceRange doCommitRange(
+      std::size_t begin_,
+      std::size_t end_);
 
     friend class InputRange;
 
-    std::vector<StreamFrame> stream_stack;
-    std::size_t window_begin;
-    std::size_t window_end;
-    std::deque<LocatedCodepoint> window;
+    struct Impl;
+    std::unique_ptr<Impl> impl;
 };
 
 } /* -- namespace OLala */

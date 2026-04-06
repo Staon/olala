@@ -26,21 +26,37 @@ SymbolNonTerminal::SymbolNonTerminal() = default;
 
 SymbolNonTerminal::~SymbolNonTerminal() = default;
 
-void SymbolNonTerminal::appendChild(
+SymbolNonTerminal& SymbolNonTerminal::appendChild(
     SymbolPtr child_) {
   children.push_back(std::move(child_));
+  return *this;
 }
 
-void SymbolNonTerminal::prependChild(
+SymbolNonTerminal& SymbolNonTerminal::prependChild(
     SymbolPtr child_) {
   children.insert(children.begin(), std::move(child_));
+  return *this;
+}
+
+void SymbolNonTerminal::setAction(
+    Action action_) {
+  action = std::move(action_);
 }
 
 const Adapted *SymbolNonTerminal::doAdapt(
     const std::type_info &info_) const {
   if(info_ == typeid(SymbolContainer))
     return this;
+  if(info_ == typeid(SymbolActionable))
+    return this;
   return nullptr;
+}
+
+void SymbolNonTerminal::doAfterAction(
+    const ParserContext& context_) const {
+  if(action) {
+    action(context_);
+  }
 }
 
 } /* -- namespace OLala */

@@ -19,6 +19,8 @@
 #ifndef OLALA_SYMBOL_H
 #define OLALA_SYMBOL_H
 
+#include <olala/symbolptr.h>
+
 #include <olala/adaptable.h>
 #include <olala/lookaheadstateptr.h>
 

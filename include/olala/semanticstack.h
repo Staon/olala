@@ -19,8 +19,10 @@
 #ifndef OLALA_SEMANTICSTACK_H
 #define OLALA_SEMANTICSTACK_H
 
+#include <tuple>
 #include <vector>
 
+#include <olala/inputsequence.h>
 #include <olala/valueptr.h>
 
 namespace OLala {
@@ -42,18 +44,29 @@ class SemanticStack final {
     /**
      * @brief Push a value at the top of the stack
      * @param value_ The value
+     * @param range_ Source range of the parsed object
      */
     void pushValue(
-        ValuePtr value_);
+        ValuePtr value_,
+        SourceRange range_);
 
     /**
      * @brief Pop a value from the stack top
-     * @return The value
+     * @return The value and its source range
      */
-    ValuePtr popValue();
+    std::tuple<ValuePtr, SourceRange> popValue();
+
+    /**
+     * @brief Remove all values from the stack
+     */
+    void clear() noexcept;
 
   private:
-    typedef std::vector<ValuePtr> Stack;
+    struct Entry {
+      ValuePtr value;
+      SourceRange range;
+    };
+    typedef std::vector<Entry> Stack;
     Stack stack;
 };
 

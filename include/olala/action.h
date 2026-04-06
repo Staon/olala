@@ -16,32 +16,20 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with OLala.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include <olala/semanticstack.h>
+#ifndef OLALA_ACTION_H
+#define OLALA_ACTION_H
 
-#include <cassert>
-#include <utility>
+#include <functional>
 
 namespace OLala {
 
-SemanticStack::SemanticStack() = default;
-SemanticStack::~SemanticStack() = default;
+class ParserContext;
 
-void SemanticStack::pushValue(
-    ValuePtr value_,
-    SourceRange range_) {
-  assert(value_ != nullptr);
-  stack.push_back({std::move(value_), std::move(range_)});
-}
-
-std::tuple<ValuePtr, SourceRange> SemanticStack::popValue() {
-  assert(!stack.empty());
-  auto entry_(std::move(stack.back()));
-  stack.pop_back();
-  return {std::move(entry_.value), std::move(entry_.range)};
-}
-
-void SemanticStack::clear() noexcept {
-  stack.clear();
-}
+/**
+ * @brief Parser action callback type
+ */
+typedef std::function<void(const ParserContext&)> Action;
 
 } /* -- namespace OLala */
+
+#endif /* OLALA_ACTION_H */

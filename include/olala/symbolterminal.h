@@ -77,10 +77,12 @@ class SymbolTerminal : public Symbol {
      *
      * @param context_ The parser context
      * @param value_ The matched string (UTF-8)
+     * @param range_ Source range of the matched input
      */
     virtual void doCommitValue(
         const ParserContext& context_,
-        std::string&& value_) const;
+        std::string&& value_,
+        SourceRange&& range_) const;
 
   private:
     void applyRange(

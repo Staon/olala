@@ -30,7 +30,7 @@ namespace OLala {
  * Pure interface declaring methods for adding children. Implementors
  * are free to choose their own storage strategy.
  */
-class SymbolContainer : public Adapted {
+class SymbolContainer : public virtual Adapted {
   public:
     SymbolContainer();
     virtual ~SymbolContainer() override;
@@ -46,7 +46,7 @@ class SymbolContainer : public Adapted {
      *
      * @param child_ The child symbol
      */
-    virtual void appendChild(
+    virtual SymbolContainer& appendChild(
         SymbolPtr child_) = 0;
 
     /**
@@ -54,7 +54,7 @@ class SymbolContainer : public Adapted {
      *
      * @param child_ The child symbol
      */
-    virtual void prependChild(
+    virtual SymbolContainer& prependChild(
         SymbolPtr child_) = 0;
 };
 
