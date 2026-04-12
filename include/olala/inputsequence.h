@@ -81,6 +81,17 @@ class InputRange {
     char32_t fetchCharacter();
 
     /**
+     * @brief Peek at the next character without advancing the range end
+     *
+     * Reads the character that would be returned by the next fetchCharacter()
+     * call, but does not advance the range end. The window is extended if
+     * necessary.
+     *
+     * @return The character or EOS.
+     */
+    char32_t peekCharacter() const;
+
+    /**
      * @brief Get the string value of this range
      *
      * @return UTF-8 encoded string of the characters in the range

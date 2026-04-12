@@ -67,6 +67,11 @@ char32_t InputRange::fetchCharacter() {
   return character;
 }
 
+char32_t InputRange::peekCharacter() const {
+  assert(sequence != nullptr);
+  return sequence->doFetchCharacter(end);
+}
+
 std::string InputRange::getString() const {
   assert(sequence != nullptr);
   return sequence->doGetString(begin, end);

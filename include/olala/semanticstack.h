@@ -22,7 +22,7 @@
 #include <tuple>
 #include <vector>
 
-#include <olala/inputsequence.h>
+#include <olala/sourcelocation.h>
 #include <olala/valueptr.h>
 
 namespace OLala {

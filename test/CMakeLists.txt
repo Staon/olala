@@ -11,6 +11,9 @@ target_link_libraries(olala-test PRIVATE
 
 addSources(olala-test . PRIVATE
     symbolidentifier.cpp
+    symbolwhitespace.cpp
+    symboldouble.cpp
+    symbolinteger.cpp
 )
 
 gtest_discover_tests(olala-test)

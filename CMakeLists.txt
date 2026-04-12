@@ -44,7 +44,12 @@ addSources(olala src PRIVATE
     symbolactionable.cpp
     symbolepsilon.cpp
     symbolidentifier.cpp
+    symbolwhitespace.cpp
+    symboldouble.cpp
+    symbolinteger.cpp
     value.cpp
+    valuedouble.cpp
+    valueinteger.cpp
     valuestring.cpp
 )
 
@@ -73,7 +78,12 @@ addSources(olala include/olala PUBLIC
     symbolactionable.h
     symbolepsilon.h
     symbolidentifier.h
+    symbolwhitespace.h
+    symboldouble.h
+    symbolinteger.h
     value.h
+    valuedouble.h
+    valueinteger.h
     valueptr.h
     valuestring.h
 )

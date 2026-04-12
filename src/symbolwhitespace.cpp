@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 Ondrej Starek
+ * Copyright (C) 2026 Ondrej Starek
  *
  * This file is part of OLala.
  *
@@ -16,45 +16,40 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with OLala.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "olala/symbolidentifier.h"
+#include <olala/symbolwhitespace.h>
 
 #include <olala/inputsequence.h>
-#include <olala/lookaheadstate.h>
 #include <olala/parsercontext.h>
 
 namespace OLala {
 
 namespace {
 
-bool isIdentStart(char32_t c_) {
-  return (c_ >= 'a' && c_ <= 'z')
-      || (c_ >= 'A' && c_ <= 'Z')
-      || c_ == '_';
-}
-
-bool isIdentContinue(char32_t c_) {
-  return isIdentStart(c_)
-      || (c_ >= '0' && c_ <= '9');
+bool isWhitespace(char32_t c_) {
+  return c_ == U' ' || c_ == U'\t' || c_ == U'\n'
+      || c_ == U'\r' || c_ == U'\v' || c_ == U'\f';
 }
 
 } /* -- namespace */
 
-SymbolIdentifier::SymbolIdentifier() = default;
-SymbolIdentifier::~SymbolIdentifier() = default;
+SymbolWhitespace::SymbolWhitespace() = default;
+SymbolWhitespace::~SymbolWhitespace() = default;
 
-std::optional<InputRange> SymbolIdentifier::doMatch(
+std::optional<InputRange> SymbolWhitespace::doMatch(
     const ParserContext& context_) const {
   auto range(context_.sequence->openRange());
 
-  /* -- the first character must be a letter or underscore */
-  if(!isIdentStart(range.peekCharacter())) {
+  /* -- at least one whitespace character is required */
+  if(!isWhitespace(range.peekCharacter())) {
     return std::nullopt;
   }
 
-  /* -- fetch all identifier characters */
+  auto f = 1.35l;
+  
+  /* -- consume all consecutive whitespace */
   do {
     range.fetchCharacter();
-  } while(isIdentContinue(range.peekCharacter()));
+  } while(isWhitespace(range.peekCharacter()));
 
   return std::move(range);
 }
